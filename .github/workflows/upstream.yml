@@ -58,7 +58,7 @@ jobs:
           mv -n $@ ../
           cd ..
           rm -rf $localdir
-          )
+        )
         function mvdir() {
         mv -n `find $1/* -maxdepth 0 -type d` ./
         rm -rf $1
@@ -263,9 +263,10 @@ jobs:
             sed -i 's/index()/index()\n\tentry({"admin", "nas"}, firstchild(), _("NAS") , 45).dependent = false/' $pkg/luasrc/controller/*.lua
         done
         (
+        branch="$(git symbolic-ref --short HEAD )"
         for pkg in $(ls -d */); do
           if [ "$(grep "PKG_RELEASE" $pkg/Makefile)" ]; then
-            sed -i "s/PKG_RELEASE:=.*/PKG_RELEASE:=$(git rev-list --count master $pkg)/" $pkg/Makefile || true
+            sed -i "s/PKG_RELEASE:=.*/PKG_RELEASE:=$(git rev-list --count $branch $pkg)/" $pkg/Makefile || true
           fi
         done
         touch /tmp/ok2
@@ -321,9 +322,10 @@ jobs:
         Emoji=("🎉" "🤞" "✨" "🎁" "🎈" "🎄" "🎨" "💋" "🍓" "🍕" "🍉" "💐" "🌴" "🚀" "🛸" "🗽" "⛅" "🌈" "🔥" "⛄" "🐶" "🏅" "🦄" "🐤")
         git add .
         git commit -m "${Emoji[$[$RANDOM % ${#Emoji[@]}]]} Sync $(date +%Y-%m-%d" "%H:%M:%S)"
+        branch="$(git symbolic-ref --short HEAD )"
         for pkg in $(git diff-tree --no-commit-id --name-only HEAD); do
           if [ "$(grep "PKG_RELEASE" $pkg/Makefile)" ]; then
-            sed -i "s/PKG_RELEASE:=.*/PKG_RELEASE:=$(git rev-list --count master $pkg)/" $pkg/Makefile || true
+            sed -i "s/PKG_RELEASE:=.*/PKG_RELEASE:=$(git rev-list --count $branch $pkg)/" $pkg/Makefile || true
           fi
         done
         git reset --soft HEAD^
