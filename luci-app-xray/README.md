@@ -1,82 +1,88 @@
-# luci-app-xray
+# OpenWrt LuCI for Xray
 
-[luci-app-v2ray](https://github.com/yichya/luci-app-v2ray) refined to client side rendering (and switched to xray as well).
+[![Latest release][release_badge]][release_url]
 
-Focus on making the most of Xray (HTTP/HTTPS/Socks/TProxy inbounds, multiple protocols support, DNS server, bridge (reverse proxy), even HTTPS proxy server for actual HTTP services) while keeping thin and elegant.
+## 简介
 
-## Warnings
+本软件包是 [xray][openwrt-xray] 的 LuCI 控制界面,
+方便用户控制和使用「透明代理」「SOCKS5 代理」「端口转发」功能.
 
-* There will be a series of **BREAKING CHANGES** in the following months due to some major refactor of DNS module. Please read changelog carefully to know about breaking changes and always backup your configuration files before updating.
-* If you see `WARNING: at least one of asset files (geoip.dat, geosite.dat) is not found under /usr/share/xray. Xray may not work properly` and don't know what to do:
-    * try `opkg update && opkg install xray-geodata` (at least OpenWrt 21.02 releases)
-    * if that doesn't work or you are using OpenWrt 19.07 releases, see [#52](https://github.com/yichya/luci-app-xray/issues/52#issuecomment-856059905)
-* This project **DOES NOT SUPPORT** the following versions of OpenWrt due to the fact that client side rendering requires LuCI client side APIs shipped with at least OpenWrt 19.07 releases. 
-    * LEDE 17.01
-    * OpenWrt 18.06
-    * [Lean's OpenWrt Source](https://github.com/coolsnowwolf/lede) (which uses a variant of LuCI shipped with OpenWrt 18.06)
+软件包文件结构:
 
-    If this is your case, use Passwall or similar projects instead (you could find links in [XTLS/Xray-core](https://github.com/XTLS/Xray-core/)).
-* For OpenWrt 19.07 releases, you need to prepare your own xray-core package (just download from [Releases · yichya/openwrt-xray](https://github.com/yichya/openwrt-xray/releases) and install that) because building Xray from source requires Go 1.17 which is currently only available in at least OpenWrt 21.02 releases.
-* This project may change its code structure, configuration files format, user interface or dependencies quite frequently since it is still in its very early stage. 
+```
+/
+├── etc/
+│   ├── config/
+│   │   └── xray                             // UCI 配置文件
+│   │── init.d/
+│   │   └── xray                             // init 脚本
+│   └── uci-defaults/
+│       └── luci-xray                        // uci-defaults 脚本
+└── usr/
+    ├── bin/
+    │   └── xray-rules                                // 生成代理转发规则的脚本
+    └── lib/
+        └── lua/
+            └── luci/                               // LuCI 部分
+                ├── controller/
+                │   └── xray.lua             // LuCI 菜单配置
+                ├── i18n/                           // LuCI 语言文件目录
+                │   └── xray.zh-cn.lmo
+                └── model/
+                    └── cbi/
+                        └── xray/
+                            ├── general.lua         // LuCI 基本设置
+                            ├── servers.lua         // LuCI 服务器列表
+                            ├── servers-details.lua // LuCI 服务器编辑
+                            └── access-control.lua  // LuCI 访问控制
+```
 
-## Changelog 2022
+## 依赖
 
-* 2022-01-08 feat: bridge; add DomainStrategy for outbound; minor UI changes
-* 2022-01-31 fix: multiple hosts in lan access control; simplify init script
-* 2022-02-01 feat: refactor transparent-proxy-ipset to use lua
-* 2022-02-02 feat: return certain domain names as NXDOMAIN
-* 2022-02-03 fix: failed to start Xray when blocked domain list is empty
-* 2022-02-15 feat: add a large `rlimit_data` option
-* 2022-02-19 fix: `rlimit_data` and `rlimit_nofile` does not work together
-* 2022-02-20 fix: return a discarded address instead of nxdomain to let dnsmasq cache these queries
-* 2022-03-25 feat: remove web and add metrics configurations (recommended to use with [metrics support](https://github.com/XTLS/Xray-core/pull/1000))
-* 2022-04-24 feat: metrics is now out of optional features; add basic ubus wrapper for xray apis
+软件包的正常使用需要依赖 `iptables` 和 `ipset`.  
+软件包不显式依赖 `xray`, 会根据用户添加的可执行文件启用相应的功能.  
+**GFW-List 模式 正常使用需要依赖 [dnsmasq-extra][openwrt-dnsmasq-extra], 其中包括`DNS防污染`和`GFW-List`**  
+可执行文件可通过安装 [openwrt-xray][openwrt-xray] 中提供的 `xray` 获得.  
+只有当文件存在时, 相应的功能才可被使用, 并显示相应的 LuCI 设置界面.
 
-## Changelog 2021
+| 可执行文件 | 可选 | 功能     | TCP 协议 | UDP 协议                           |
+| ---------- | ---- | -------- | -------- | ---------------------------------- |
+| `xray`     | 是   | 透明代理 | 支持     | 需安装 `iptables-mod-tproxy`, `ip` |
 
-* 2021-01-01 feature: build Xray from source; various fixes about tproxy and logging
-* 2021-01-25 feature: Xray act as HTTPS server
-* 2021-01-29 fix: add ipset as dependency to fix transparent proxy problems; remove useless and faulty extra_command in init.d script
-* 2021-01-29 feature: decouple with Xray original binary and data files. Use [openwrt-xray](https://github.com/yichya/openwrt-xray) instead.
-* 2021-01-30 feature: select GeoIP set for direct connection. This is considered a **BREAKING** change because if unspecified, all IP addresses is forwarded through Xray.
-* 2021-03-17 feature: support custom configuration files by using Xray integrated [Multiple configuration files support](https://xtls.github.io/config/features/multiple.html). Check `/var/etc/xray/config.json` for tags of generated inbounds and outbounds.
-* 2021-03-20 fix: no longer be compatible with [OpenWrt Packages: xray-core](https://github.com/openwrt/packages/tree/master/net/xray-core) because of naming conflict of configuration file and init script. Again, use
-[openwrt-xray](https://github.com/yichya/openwrt-xray) instead.
-* 2021-03-21 feature: detailed fallback config for Xray HTTPS server
-* 2021-03-27 feature: check data files before using them. If data files don't exist, Xray will run in 'full' mode (all outgoing network traffic will be forwarded through Xray). Make sure you have a working server in this case or you have to disable Xray temporarily (SSH into your router and run `service xray stop`) for debugging. You can download data files from [Releases · XTLS/Xray-core](https://github.com/XTLS/xray-core/releases) or [Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat) and upload them to `/usr/share/xray` on your router, or just compile your firmware with data files included (recommended in most cases).
-* 2021-04-02 feature: utls fingerprint (currently not available for xtls and [will be supported in Xray-core v1.5.0](https://github.com/XTLS/Xray-core/pull/451))
-* 2021-04-06 feature: customize DNS bypass rules. This is considered a **BREAKING** change because if unspecified, all DNS requests is forwarded through Xray.
-* 2021-05-15 feature: add gRPC Transport settings; make init script infinite retry optional
-* 2021-07-03 fix: write upstream hostname to dnsmasq configurations to avoid infinite loop while resolving upstream hostname
-* 2021-08-31 feature: Accept more DNS server formats
-* 2021-09-19 fix: compatible with latest dnsmasq (2.86) by adding `strict-order` to dnsmasq options generated by luci-app-xray. This should not affect compatibility with earlier dnsmasq versions (mostly 2.85) but if you encounter problems please report.
-* 2021-09-26 fix: several issues related to HTTPS server
-* 2021-10-01 fix: parsing default gateway in some cases
-* 2021-10-06 feature: show information about asset files in LuCI; fix Xray startup when asset files are unavailable
-* 2021-10-08 feature: extra DNS Server Port to reduce possibility of temporary DNS lookup failures
-* 2021-10-09 fix: temporarily revert DNS over HTTPS related changes to avoid dnsmasq and iptables errors
-* 2021-10-12 fix: domain based routing if sniffing is enabled
-* 2021-10-19 feat: change upstream DNS resolve method to directly using Xray internal DNS server
-* 2021-11-14 feat: LAN access control for transparent proxy. Devices can be set to not being transparently proxied per MAC address.
-* 2021-11-15 feat: manual transparent proxy. A use case is accessing IPv6 only websites without any IPv6 address (for example, `192.0.2.1:443 -> tracker.byr.pt:443` and add hosts item `192.0.2.1 byr.pt`)
-* 2021-11-20 feat: alpn settings for outbound
-* 2021-11-21 fix: minor adjustments about service reloading, default DNS port, host hints, etc.
-* 2021-12-16 feat: expose log and policy settings
-* 2021-12-24 feat: grpc health check and initial window size
-* 2021-12-25 feat: be compatible with [OpenWrt Packages: xray-core](https://github.com/openwrt/packages/tree/master/net/xray-core) again (by replacing its UCI configuration file and init script upon install). Still supports using [openwrt-xray](https://github.com/yichya/openwrt-xray). This should work in most cases and your previous configuration file of luci-app-xray is also preserved, but if you encounter problems please report.
-* 2021-12-26 feat: support custom DNS port
+注: 可执行文件在 `$PATH` 环境变量所表示的搜索路径中, 都可被正确调用.
 
-## Changelog 2020
-* 2020-11-14 feature: basic transparent proxy function
-* 2020-11-15 fix: vless flow settings & compatible with busybox ip command
-* 2020-12-04 feature: add xtls-rprx-splice to flow
-* 2020-12-26 feature: allow to determine whether to use proxychains during build; trojan xtls flow settings
+## 配置
 
-## Todo
+软件包的配置文件路径: `/etc/config/xray`  
+此文件为 UCI 配置文件, 配置方式可参考 [Wiki -> Use-UCI-system][use-uci-system] 和 [OpenWrt Wiki][uci]  
+透明代理的访问控制功能设置可参考 [Wiki -> LuCI-Access-Control][luci-access-control]
 
-* [x] LuCI ACL Settings
-* [x] migrate to xray-core
-* [x] better server role configurations
-* [x] transparent proxy access control for LAN
-* [x] try to be compatible with [OpenWrt Packages: xray-core](https://github.com/openwrt/packages/tree/master/net/xray-core)
-* [ ] Better DNS module implementation like DoH (may involve breaking changes)
+## 编译
+
+从 OpenWrt 的 [SDK][openwrt-sdk] 编译
+
+```bash
+# 解压下载好的 SDK
+tar xjf OpenWrt-SDK-ar71xx-for-linux-x86_64-gcc-4.8-linaro_uClibc-0.9.33.2.tar.bz2
+cd OpenWrt-SDK-ar71xx-*
+# Clone 项目
+git clone https://github.com/honwen/luci-app-xray.git package/luci-app-xray
+# 编译 po2lmo (如果有po2lmo可跳过)
+pushd package/luci-app-xray/tools/po2lmo
+make && sudo make install
+popd
+# 选择要编译的包 LuCI -> 3. Applications
+make menuconfig
+# 开始编译
+make package/luci-app-xray/compile V=99
+```
+
+[release_badge]: https://img.shields.io/github/release/honwen/luci-app-xray.svg
+[release_url]: https://github.com/honwen/luci-app-xray/releases
+[openwrt-xray]: https://github.com/honwen/openwrt-precompiled-feeds
+[openwrt-sdk]: https://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
+[xray-rules]: https://github.com/xray/luci-app-xray/wiki/Instruction-of-xray-rules
+[use-uci-system]: https://github.com/xray/luci-app-xray/wiki/Use-UCI-system
+[uci]: https://wiki.openwrt.org/doc/uci
+[luci-access-control]: https://github.com/xray/luci-app-xray/wiki/LuCI-Access-Control
+[openwrt-dnsmasq-extra]: https://github.com/honwen/openwrt-dnsmasq-extra
